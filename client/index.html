@@ -1,0 +1,236 @@
+<html>
+    <head>
+        <title>metaUni</title>
+    </head>
+    <body>
+        <style>
+            .scene {
+                height: 400px;
+                width: 400px;
+                background-color: rgb(9, 117, 117);
+                position: relative;
+            }
+            .self {
+                position: absolute;
+                left: 0;
+                top: 0;
+                height: 30px;
+                width: 30px;
+                line-height: 30px;
+                text-align: center;
+                color: wheat;
+                background-color: blue;
+                border-radius: 100%;
+                transform: translate(var(--offsetX), var(--offsetY));
+            }
+            .player {
+                height: 30px;
+                width: 30px;
+                line-height: 30px;
+                text-align: center;
+                color: wheat;
+                background-color: red;
+            }
+        </style>
+        <div class="scene" id="scene">
+        </div>
+        <script>
+
+            class Avatar {
+                constructor (id) {
+                    this.id = id
+                    this.X = 0
+                    this.Y = 0
+                    this.V = 0
+                    this.H = 0
+                }
+                createElem(name, info) {
+                    let elem = document.createElement('div')
+                    elem.innerHTML = name
+                    elem.className = 'self'
+                    elem.setAttribute('title', info.id)
+                    elem.style.setProperty('--offsetX', this.X+'px')
+                    elem.style.setProperty('--offsetY', this.Y+'px')
+                    this.elem = elem
+                    document.getElementById('scene').append(this.elem)
+                }
+            }
+
+            
+
+            let CreateWebSocket = (function(){
+                return function (urlValue) {
+                    if (window.WebSocket) return new WebSocket(urlValue);
+                    if (window.MozWebSocket) return new MozWebSocket(urlValue);  
+                    return false;
+                }
+            })();
+
+            let ws = new CreateWebSocket('ws://localhost:3001')
+
+
+            let players = {}
+
+            let myself = {}
+
+            ws.onmessage = function (msg) {
+                // console.info('服务器说：'+ msg.data);
+                if (msg.data&&msg.data.match(/^self\-/)) {
+                    let selfInfo = JSON.parse(msg.data.replace(/^self\-/,''))
+                    let avatar = new Avatar(selfInfo.id);
+                    myself = avatar;
+                    players[avatar.id] = avatar
+                    avatar.createElem('我', selfInfo)
+                    console.info(avatar)
+                }
+                if (msg.data&&msg.data.match(/^player\-/)) {
+                    let playerInfo = JSON.parse(msg.data.replace(/^player\-/,''))
+                    if (players[playerInfo.id]) { //已经创建过实例
+                            //更新状态
+                        let this_one = players[playerInfo.id]
+                        this_one.H = playerInfo.H
+                        this_one.V = playerInfo.V
+
+                        this_one.X = playerInfo.X
+                        this_one.Y = playerInfo.Y
+
+                    }else {  //否则创建新的实例
+                        let avatar = new Avatar(playerInfo.id);
+                        players[avatar.id] = avatar
+                        avatar.createElem('人', playerInfo)
+                        console.info('创建他人角色', playerInfo.id)
+                    }
+                }
+                if (msg.data&&msg.data.match(/^leave\-/)) {
+                    let leave = JSON.parse(msg.data.replace(/^leave\-/,''))
+                    if (players[leave.id]) {
+                        players[leave.id].elem.remove()
+                        delete players[leave.id]
+                    }
+                }
+
+            }
+
+            ws.onclose = function(){
+                console.info('关闭连接')
+            }
+
+            window.onbeforeunload = function () {
+                ws.close();
+            };
+
+
+            document.addEventListener('keydown', function(event){
+                switch (event.key) {
+                    case 'ArrowUp': 
+                        myself.V = -1;
+                        break;
+                    case 'ArrowDown': 
+                        myself.V = 1;
+                        break;
+                    case 'ArrowLeft': 
+                        myself.H = -1;
+                        break;
+                    case 'ArrowRight': 
+                        myself.H = 1;
+                        break;
+                }
+
+                let sendInfo = 'move-'+ JSON.stringify({
+                    id: myself.id,
+                    H: myself.H,
+                    V: myself.V
+                })
+                ws.send(sendInfo);
+            })
+            document.addEventListener('keyup', function(event){
+                switch (event.key) {
+                    case 'ArrowUp': 
+                    if (myself.V == -1) { myself.V = 0; }
+                        break;
+                    case 'ArrowDown': 
+                    if (myself.V == 1) { myself.V = 0; }
+                        break;
+                    case 'ArrowLeft': 
+                    if (myself.H == -1) { myself.H = 0; }
+                        break;
+                    case 'ArrowRight': 
+                    if (myself.H == 1) { myself.H = 0; }
+                        break;
+                }
+                let sendInfo = 'move-'+ JSON.stringify({
+                    id: myself.id,
+                    H: myself.H,
+                    V: myself.V
+                })
+                ws.send(sendInfo);
+            })
+
+            const speed = 60
+            function frame (deltaTime) {
+
+                let thisFrameDistance = speed * ( deltaTime / 1000 )
+
+                Object.values(players).forEach(item => {
+                    if (item.H) {
+                        if (item.H == -1) {  //左
+                            item.X = item.X - thisFrameDistance
+                        }else {
+                            item.X = item.X + thisFrameDistance
+                        }
+                    }
+                    if (item.V) {
+                        if (item.V == -1) {  //上
+                            item.Y = item.Y - thisFrameDistance
+                        }else {
+                            item.Y = item.Y + thisFrameDistance
+                        }
+                    }
+                    item.elem.style.setProperty('--offsetX', parseInt(item.X) + 'px' )
+                    item.elem.style.setProperty('--offsetY', parseInt(item.Y) + 'px' )
+                });
+            }
+
+            function frameForSecond() {
+
+            }
+
+
+            let noLimitPT = 0 //最小间隔循环的 上次刷新时间
+
+            let sixtyFrameLimitPT = 0 //60帧/s的常规刷新
+
+            let oneFrameLimitPT = 0  //1帧/s的长间隔刷新
+
+            function render() {
+
+                let cur = new Date().getTime();
+
+                if (noLimitPT) {
+                    let deltaTime = cur - noLimitPT
+                    frame(deltaTime)
+                }
+                
+                noLimitPT = cur;  //每次循环更新最小间隔last渲染时间
+
+                if (cur - 16 > sixtyFrameLimitPT) { //达到60帧单帧间隔
+                    //执行 
+                    sixtyFrameLimitPT = cur
+                }
+
+                if (cur - 1000 > oneFrameLimitPT) { //达到1帧/s单帧间隔
+                    //执行 
+                    frameForSecond()
+                    oneFrameLimitPT = cur
+                }
+
+                requestAnimationFrame(function(){ render() })
+            }
+
+            render()
+
+            
+            
+        </script>
+    </body>
+</html>
