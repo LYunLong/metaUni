@@ -23,6 +23,21 @@
                 border-radius: 100%;
                 transform: translate(var(--offsetX), var(--offsetY));
             }
+            .say {
+                display: block;
+                position: absolute;
+                bottom: 110%;
+                left: 50%;
+                transform: translateX(-50%);
+                border: 3px solid white;
+                background-color: rgba(100,100,100,.7);
+                color: white;
+                padding: 5px;
+                white-space: nowrap;
+            }
+            .say:empty {
+                display: none;
+            }
             .player {
                 height: 30px;
                 width: 30px;
@@ -32,9 +47,25 @@
                 background-color: red;
             }
         </style>
+        <div class="say-container">
+            <label>发送：</label>
+            <input id="say">
+            <button id="say-confirm">确认</button>
+        </div>
         <div class="scene" id="scene">
         </div>
         <script>
+
+
+            document.getElementById('say-confirm').onclick = function(){
+                let content = document.getElementById('say').value
+                console.info(content)
+                if (ws) {
+                    ws.send('say-'+JSON.stringify({"content":content}))
+                    document.getElementById('say').value = ''
+                }
+            }
+
 
             class Avatar {
                 constructor (id) {
@@ -53,7 +84,29 @@
                     elem.style.setProperty('--offsetY', this.Y+'px')
                     this.elem = elem
                     document.getElementById('scene').append(this.elem)
+
+                    /**
+                     * 说话容器
+                    */
+                    let sayElem = document.createElement('div')
+                    this.sayElem = sayElem
+                    sayElem.className = 'say'
+                    elem.append(sayElem)
                 }
+                say(content) {
+                    if (this.sayElem.timeToHideSay) {
+                        clearTimeout(this.sayElem.timeToHideSay)
+                        this.sayElem.timeToHideSay = null
+                    }
+                    this.sayElem.innerHTML = content
+                    let that = this
+                    let timeToHideSay = setTimeout(() => {
+                        that.sayElem.innerHTML = ''      
+                        this.sayElem.timeToHideSay = null                  
+                    }, 3000);
+                    this.sayElem.timeToHideSay = timeToHideSay
+                }
+                
             }
 
             
@@ -93,7 +146,6 @@
 
                         this_one.X = playerInfo.X
                         this_one.Y = playerInfo.Y
-
                     }else {  //否则创建新的实例
                         let avatar = new Avatar(playerInfo.id);
                         players[avatar.id] = avatar
@@ -108,7 +160,12 @@
                         delete players[leave.id]
                     }
                 }
-
+                if (msg.data&&msg.data.match(/^say\-/)) {
+                    let say = JSON.parse(msg.data.replace(/^say\-/,''))
+                    if (players[say.id]) {
+                        players[say.id].say(say.content)
+                    }
+                }
             }
 
             ws.onclose = function(){

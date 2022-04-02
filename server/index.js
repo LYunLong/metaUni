@@ -39,6 +39,10 @@ function frame (deltaTime) {
 
 function frameForSecond() {
     players.forEach(item=> {
+        // item.websocket.send('say-'+JSON.stringify({
+        //     id: item.id,
+        //     content: '我是定时说话'
+        // }))
         players.forEach(item2=> {
             item2.websocket.send('player-'+JSON.stringify({
                 id: item.id,
@@ -151,6 +155,16 @@ app.ws.use((ctx, next)=>{
                     V: ctx.V,
                     X: ctx.X,
                     Y: ctx.Y,
+                }))
+            }
+        }
+
+        if (message.match(/^say\-/)) {
+            let say = JSON.parse(message.replace(/^say\-/,''))
+            for (let i = 0; i< players.length; i++) {
+                players[i].websocket.send('say-'+JSON.stringify({
+                    id: ctx.id,
+                    content: say.content
                 }))
             }
         }
