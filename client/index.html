@@ -48,11 +48,19 @@
                 background-color: red;
             }
         </style>
+        <div>.</div>
+        <div class="nickname-container">
+            <label>我的昵称：</label>
+            <input id="nickname">
+            <button id="nickname-confirm">生效</button>
+        </div>
+        <div>.</div>
         <div class="say-container">
             <label>发送：</label>
             <input id="say">
             <button id="say-confirm">确认</button>
         </div>
+        <div>.</div>
         <div class="scene" id="scene">
         </div>
         <script>
@@ -68,6 +76,16 @@
             }
 
 
+            document.getElementById('nickname-confirm').onclick = function(){
+                let content = document.getElementById('nickname').value
+                console.info(content)
+                if (ws) {
+                    ws.send('nickname-'+JSON.stringify({"content":content}))
+                    document.getElementById('nickname').value = ''
+                }
+            }
+
+
             class Avatar {
                 constructor (id) {
                     this.id = id
@@ -78,14 +96,23 @@
                 }
                 createElem(name, info) {
                     let elem = document.createElement('div')
-                    elem.innerHTML = name
+                    
                     elem.className = 'self'
                     elem.setAttribute('title', info.id)
                     elem.style.setProperty('--offsetX', this.X+'px')
                     elem.style.setProperty('--offsetY', this.Y+'px')
                     this.elem = elem
                     document.getElementById('scene').append(this.elem)
+                    /**
+                     * 昵称容器
+                    */
+                    let nicknameElem = document.createElement('div')
+                    this.nicknameElem = nicknameElem
+                    nicknameElem.className = 'nickname'
+                    nicknameElem.innerHTML = name
+                    elem.append(nicknameElem)
 
+                    
                     /**
                      * 说话容器
                     */
@@ -93,6 +120,9 @@
                     this.sayElem = sayElem
                     sayElem.className = 'say'
                     elem.append(sayElem)
+
+
+
                 }
                 say(content) {
                     if (this.sayElem.timeToHideSay) {
@@ -107,7 +137,10 @@
                     }, 3000);
                     this.sayElem.timeToHideSay = timeToHideSay
                 }
-                
+                setName(name) {
+                    this.nickname = name;
+                    this.nicknameElem.innerHTML = name;
+                }
             }
 
             
@@ -120,7 +153,7 @@
                 }
             })();
 
-            let ws = new CreateWebSocket('ws://118.195.183.201:3001')
+            let ws = new CreateWebSocket('ws://localhost:3001')
 
 
             let players = {}
@@ -165,6 +198,12 @@
                     let say = JSON.parse(msg.data.replace(/^say\-/,''))
                     if (players[say.id]) {
                         players[say.id].say(say.content)
+                    }
+                }
+                if (msg.data&&msg.data.match(/^nickname\-/)) {
+                    let nickname = JSON.parse(msg.data.replace(/^nickname\-/,''))
+                    if (players[nickname.id] && nickname.content) {
+                        players[nickname.id].setName(nickname.content)
                     }
                 }
             }

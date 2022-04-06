@@ -89,7 +89,7 @@ render()
 
 app.ws.use((ctx, next)=>{
 
-    console.info(111111)
+    console.info('创建新用户')
 
     players.push(ctx);
 
@@ -122,6 +122,14 @@ app.ws.use((ctx, next)=>{
                 X: players[i].X,
                 Y: players[i].Y,
             }))
+            /**
+             * 同步nickname
+            */
+            this.websocket.send('nickname-'+JSON.stringify({
+                id: players[i].id,
+                content: players[i].nickname || '',
+            }))
+
             players[i].websocket.send('player-'+JSON.stringify({
                 id: this.id,
                 H: this.H,
@@ -129,6 +137,7 @@ app.ws.use((ctx, next)=>{
                 X: this.X,
                 Y: this.Y,
             }))
+            
         }
     }
 
@@ -161,10 +170,22 @@ app.ws.use((ctx, next)=>{
 
         if (message.match(/^say\-/)) {
             let say = JSON.parse(message.replace(/^say\-/,''))
+            console.info(message)
             for (let i = 0; i< players.length; i++) {
                 players[i].websocket.send('say-'+JSON.stringify({
                     id: ctx.id,
                     content: say.content
+                }))
+            }
+        }
+
+        if (message.match(/^nickname\-/)) {
+            let nickname = JSON.parse(message.replace(/^nickname\-/,''))
+            ctx.nickname = nickname.content || ''
+            for (let i = 0; i< players.length; i++) {
+                players[i].websocket.send('nickname-'+JSON.stringify({
+                    id: ctx.id,
+                    content: nickname.content
                 }))
             }
         }
